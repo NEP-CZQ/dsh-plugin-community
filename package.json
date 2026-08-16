@@ -1,0 +1,25 @@
+{
+  "name": "@deepseek-ai/dsh-plugin-community",
+  "version": "1.0.0",
+  "description": "内置插件社区：设置面板展示精选目录，一键安装/卸载到部署配置。",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-settings"
+      ],
+      "platform": "web"
+    }
+  }
+}
