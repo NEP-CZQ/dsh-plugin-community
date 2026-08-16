@@ -1,6 +1,6 @@
 # @deepseek-ai/dsh-plugin-community
 
-内置「插件社区」store：在 DSH Web 设置面板展示一个精选插件目录，每个插件提供**一键安装 / 卸载**，写入（或移除）部署配置 `cordis.patch.yml`，改动由 `watchUserPatches` 热重载生效，无需重启。
+内置「插件社区」store：在 DSH Web 设置面板提供 **已安装 / 插件社区 / 待更新** 三个分区，支持精选与社区插件的**一键安装 / 卸载**，以及**版本比对更新检测**。安装即写入（或移除）部署配置 `cordis.patch.yml`，改动由 `watchUserPatches` 热重载生效，无需重启。
 
 ## 目录结构
 
@@ -26,6 +26,7 @@ dsh-plugin-community/
 | GET | `/plugin-community/list` | 返回目录 + 各插件已安装状态 |
 | POST | `/plugin-community/install` | body `{ "id": "..." }`，安装一个插件 |
 | POST | `/plugin-community/uninstall` | body `{ "id": "..." }`，卸载一个插件 |
+| POST | `/plugin-community/install-community` | body `{ "id", "defaultBranch" }`，社区插件一键安装（读取仓库 package.json） |
 
 > 说明：这些路由无鉴权，适合本地/受信内网；公网部署请自行加鉴权。
 
@@ -99,12 +100,33 @@ dsh-plugin-community/
 
 新增条目后改 `CATALOG` 并重载；「安装」即向 `cordis.patch.yml` 追加该 `row` 对应的 `insert` 条目。
 
+## 页面编排（三 Tab）
+
+设置分区顶部三个 Tab（带计数角标）：
+
+| Tab | 内容 |
+|---|---|
+| **已安装** | 已装插件（官方/社区徽章 + 包名 + 版本）；官方插件可「卸载」 |
+| **插件社区** | 精选（官方）+ 社区市场（搜索 / 分类 / 最多人安装排序 / 一键安装） |
+| **待更新** | 已装插件中检测到新版的项：`v当前 → v最新` |
+
+## 语义分类
+
+社区插件按 `名称 + 简介 + topics` 关键词归类到：**界面设计 / 功能实现 / 工作流编排 / 集成对接 / 开发脚手架 / 目录聚合 / 其他**。规则在宿主面 `CATEGORY_RULES`，改数组即可增删分区。
+
+## 版本追踪与待更新
+
+- 状态文件 `<workspaceRoot>/.plugin-community-installed.json`：在安装/卸载时记录 `{ packageName, source, installedVersion, repoId?, defaultBranch? }`。
+- 首启播种：`doList` 会把已装但未记录的官方插件自动补录（避免老安装不显示在「已安装」）。
+- 最新版来源：官方 → `registry.npmjs.org/<包名>` 的 `dist-tags.latest`；社区 → 仓库 `package.json` 的 `version`。
+- 版本字符串不同即判「待更新」；真实升级仍需手动 `npm install` / `dsh plugin add`（插件不接管包安装）。
+
 ## 社区实时同步
 
 宿主面 `doList` 会实时抓取 GitHub topic「dsh-plugin」：
 
 - 数据源：`https://api.github.com/search/repositories?q=topic:dsh-plugin&per_page=50&sort=stars`
 - 通路：宿主面是普通 Node 进程，用原生 `fetch` 直连（不经 `ctx.web`，因为本部署未注册 fetch provider）。
-- 展示：社区仓库显示名称 / 星标 / 描述 / 作者，带「打开仓库」链接与「刷新」按钮。
-- 社区仓库是异构的（有 awesome 目录、聚合器、真插件），尚无统一的可安装包名约定（官方插件脚手架见 [RFC #1629](https://github.com/deepseek-ai/deepseek-harness/discussions/1629)），故社区条目先做「打开仓库」引导，一键安装仅对内置精选 `CATALOG` 生效。
+- 展示：社区仓库显示名称 / 星标 / 描述 / 作者 / 分类，带「仓库」链接、搜索、分类 chips、最多人安装/最近更新排序、以及「一键安装」。
+- 一键安装约定：读取仓库 `package.json` 的 `name`（npm 包名），写入 `cordis.patch.yml` 的 `insert` 条目；未声明 `name` 的仓库（awesome 目录等）会明确报错。
 - 抓取失败时优雅降级：仅显示内置精选，并在 UI 提示 `communityError`。
